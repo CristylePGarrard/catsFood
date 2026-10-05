@@ -34,6 +34,8 @@ map.pm.addControls({
 
 let currentGeometry = null;
 let currentLayer = null;
+let currentLayerGroup = null;
+let regionGeometryRecords = [];
 
 function updateGeometryOutput() {
 
@@ -81,6 +83,7 @@ function updateGeometryFromLayer(layer) {
 map.on(
   "pm:create",
   event => {
+    currentLayerGroup = null;
 
     currentLayer =
       event.layer;
@@ -92,14 +95,11 @@ map.on(
     currentLayer.on(
       "pm:edit",
       () => {
-
         updateGeometryFromLayer(
           currentLayer
         );
-
       }
     );
-
   }
 );
 
@@ -144,6 +144,11 @@ async function loadRegions() {
     const data =
       await response.json();
 
+    console.log(
+      "Editor API response:",
+      data
+    );
+
     if (
       !data.success ||
       !Array.isArray(data.regions)
@@ -152,6 +157,20 @@ async function loadRegions() {
         "API did not return regions."
       );
     }
+
+    if (!Array.isArray(data.regionGeometry)) {
+      throw new Error(
+        "API did not return region geometry."
+      );
+    }
+
+    regionGeometryRecords =
+      data.regionGeometry;
+
+    console.log(
+      "Loaded region geometry:",
+      regionGeometryRecords
+    );
 
     data.regions
       .sort(
@@ -189,6 +208,164 @@ async function loadRegions() {
   }
 
 }
+//Helper function for clearing map layers
+function removeCurrentGeometryLayer() {
+  if (!currentLayer) {
+    return;
+  }
+
+  const parentIDs =
+    Object.keys(
+      currentLayer._eventParents || {}
+    );
+
+  parentIDs.forEach(
+    parentID => {
+      const parentLayer =
+        map._layers[parentID];
+
+      if (parentLayer) {
+        map.removeLayer(
+          parentLayer
+        );
+      }
+    }
+  );
+
+  if (map.hasLayer(currentLayer)) {
+    map.removeLayer(
+      currentLayer
+    );
+  }
+
+  currentLayer = null;
+  currentLayerGroup = null;
+}
+
+function clearCurrentGeometry() {
+  if (currentLayerGroup) {
+
+    map.removeLayer(
+      currentLayerGroup
+    );
+
+    currentLayerGroup = null;
+  }
+
+  if (currentLayer) {
+
+    map.removeLayer(
+      currentLayer
+    );
+
+    currentLayer = null;
+  }
+
+  currentGeometry = null;
+
+  updateGeometryOutput();
+}
+
+function loadSelectedRegionGeometry() {
+  const regionSelect =
+    document.getElementById(
+      "regionSelect"
+    );
+
+  const regionID =
+    regionSelect.value;
+
+  clearCurrentGeometry();
+
+  if (!regionID) {
+    return;
+  }
+
+  const matchingGeometry =
+    regionGeometryRecords
+      .filter(
+        geometry =>
+          String(
+            geometry.regionID
+          ) === String(regionID)
+      )
+      .sort(
+        (a, b) =>
+          new Date(
+            b.updatedAt
+          ) -
+          new Date(
+            a.updatedAt
+          )
+      );
+
+  if (
+    matchingGeometry.length === 0
+  ) {
+    return;
+  }
+
+  const latestGeometry =
+    matchingGeometry[0];
+
+  let geometry =
+    latestGeometry.geometry;
+
+  if (
+    typeof geometry === "string"
+  ) {
+    geometry =
+      JSON.parse(geometry);
+  }
+
+  const feature = {
+    type: "Feature",
+    properties: {},
+    geometry: geometry
+  };
+
+
+  const geoJsonLayer =
+    L.geoJSON(feature);
+
+  geoJsonLayer.addTo(map);
+
+  currentLayerGroup =
+    geoJsonLayer;
+
+  currentLayer =
+    geoJsonLayer.getLayers()[0];
+
+  updateGeometryFromLayer(
+    currentLayer
+  );
+
+  currentLayer.on(
+    "pm:edit",
+    () => {
+      updateGeometryFromLayer(
+        currentLayer
+      );
+    }
+  );
+
+  if (currentLayer) {
+    map.fitBounds(
+      currentLayer.getBounds(),
+      {
+        padding: [30, 30]
+      }
+    );
+  }
+}
+
+document
+  .getElementById("regionSelect")
+  .addEventListener(
+    "change",
+    loadSelectedRegionGeometry
+  );
+
 loadRegions();
 async function saveGeometry() {
 
@@ -297,4 +474,10 @@ document
   .addEventListener(
     "click",
     saveGeometry
+  );
+document
+  .getElementById("clearButton")
+  .addEventListener(
+    "click",
+    clearCurrentGeometry
   );
