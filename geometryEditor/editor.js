@@ -183,7 +183,6 @@ async function loadRegions() {
       )
       .forEach(
         region => {
-
           const option =
             document.createElement(
               "option"
@@ -195,15 +194,15 @@ async function loadRegions() {
           option.textContent =
             region.name;
 
-          option.dataset.regionType = region.regionType;
+          option.dataset.regionType = region.type;
 
           regionSelect.appendChild(
             option
           );
-
         }
       );
 
+    updateGeometryMethod();
   } catch (error) {
 
     console.error(
@@ -214,6 +213,8 @@ async function loadRegions() {
   }
 
 }
+
+
 //Helper function for clearing map layers
 function removeCurrentGeometryLayer() {
   if (!currentLayer) {
@@ -297,6 +298,16 @@ function updateGeometryMethod() {
   const regionType =
     selectedOption.dataset.regionType;
 
+  const hasSavedGeometry =
+    regionGeometryRecords.some(
+      geometry =>
+        String(
+          geometry.regionID
+        ) === String(
+          regionSelect.value
+        )
+    );
+
   if (regionType === "Country") {
     geometryMethod.textContent =
       "Existing country boundary — no drawing needed.";
@@ -304,13 +315,24 @@ function updateGeometryMethod() {
   }
 
   if (regionType === "City") {
-    geometryMethod.textContent =
-      "Existing administrative boundary — no drawing needed.";
+    if (hasSavedGeometry) {
+      geometryMethod.textContent =
+        "Custom geometry — saved geometry loaded.";
+    } else {
+      geometryMethod.textContent =
+        "Existing administrative boundary — no drawing needed.";
+    }
+
     return;
   }
 
-  geometryMethod.textContent =
-    "Custom geometry — draw the boundary.";
+  if (hasSavedGeometry) {
+    geometryMethod.textContent =
+      "Custom geometry — saved geometry loaded.";
+  } else {
+    geometryMethod.textContent =
+      "Custom geometry — draw the boundary.";
+  }
 }
 
 function loadSelectedRegionGeometry() {
@@ -325,6 +347,18 @@ function loadSelectedRegionGeometry() {
   clearCurrentGeometry();
 
   if (!regionID) {
+    return;
+  }
+
+  const selectedOption =
+    regionSelect.options[
+      regionSelect.selectedIndex
+    ];
+
+  const regionType =
+    selectedOption.dataset.regionType;
+
+  if (regionType === "Country") {
     return;
   }
 
