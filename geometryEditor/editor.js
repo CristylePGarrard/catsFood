@@ -129,6 +129,10 @@ async function loadRegions() {
     document.getElementById(
       "regionSelect"
     );
+  const geometryMethod =
+    document.getElementById(
+      "geometryMethod"
+    );
 
   try {
 
@@ -190,6 +194,8 @@ async function loadRegions() {
 
           option.textContent =
             region.name;
+
+          option.dataset.regionType = region.regionType;
 
           regionSelect.appendChild(
             option
@@ -264,6 +270,47 @@ function clearCurrentGeometry() {
   currentGeometry = null;
 
   updateGeometryOutput();
+}
+
+function updateGeometryMethod() {
+  const regionSelect =
+    document.getElementById(
+      "regionSelect"
+    );
+
+  const geometryMethod =
+    document.getElementById(
+      "geometryMethod"
+    );
+
+  const selectedOption =
+    regionSelect.options[
+      regionSelect.selectedIndex
+    ];
+
+  if (!regionSelect.value) {
+    geometryMethod.textContent =
+      "Select a region to see its geometry method.";
+    return;
+  }
+
+  const regionType =
+    selectedOption.dataset.regionType;
+
+  if (regionType === "Country") {
+    geometryMethod.textContent =
+      "Existing country boundary — no drawing needed.";
+    return;
+  }
+
+  if (regionType === "City") {
+    geometryMethod.textContent =
+      "Existing administrative boundary — no drawing needed.";
+    return;
+  }
+
+  geometryMethod.textContent =
+    "Custom geometry — draw the boundary.";
 }
 
 function loadSelectedRegionGeometry() {
@@ -363,7 +410,10 @@ document
   .getElementById("regionSelect")
   .addEventListener(
     "change",
-    loadSelectedRegionGeometry
+    () => {
+      updateGeometryMethod();
+      loadSelectedRegionGeometry();
+    }
   );
 
 loadRegions();

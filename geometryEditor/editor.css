@@ -129,6 +129,17 @@ body {
     width: 100%;
   }
 
+  .region-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .geometry-method {
+    font-size: 14px;
+    color: #5f665f;
+  }
+
   .editor-map {
     height: 450px;
   }

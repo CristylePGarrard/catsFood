@@ -46,19 +46,21 @@
   <main class="editor-container">
 
     <section class="editor-controls">
+      <label for="regionSelect">Region</label>
 
-      <label for="regionSelect">
-        Region
-      </label>
+      <div class="region-selection">
+        <select id="regionSelect">
+          <option value="">Select a region</option>
+        </select>
 
-      <select id="regionSelect">
-
-        <option value="">
-          Select a region
-        </option>
-
-      </select>
-
+        <div
+                id="geometryMethod"
+                class="geometry-method"
+                aria-live="polite"
+        >
+          Select a region to see its geometry method.
+        </div>
+      </div>
     </section>
 
 
