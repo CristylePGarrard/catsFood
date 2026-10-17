@@ -17,37 +17,46 @@
 const API_URL =
   "https://script.google.com/macros/s/AKfycbzEZPjdh6VhO_sc3147Tmv_FR3A3kgud70TxzRR3IU6K5EWQPW6Jlw7Yo_pRc-dAYwv/exec"
 let experiences = [];
+let regions = [];
+let regionGeometry = [];
 
 // ============================================================
 // LOAD FOOD DATA
 // ============================================================
 
+
 async function loadExperiences() {
   try {
-    const response =
-      await fetch(API_URL);
+    const response = await fetch(API_URL);
+
     if (!response.ok) {
-      throw new Error(
-        `API request failed: ${response.status}`
-      );
+      throw new Error(`API request failed: ${response.status}`);
     }
-    const data =
-      await response.json();
+
+    const data = await response.json();
+
     if (!data.success) {
-      throw new Error(
-        data.error || "API returned an error."
-      );
+      throw new Error(data.error || "API returned an error.");
     }
-    experiences =
-      data.experiences || [];
+
+    experiences = data.experiences || [];
+    regions = data.regions || [];
+    regionGeometry = data.regionGeometry || [];
+
     console.log(
       `Loaded ${experiences.length} food experiences from Google Sheets.`
     );
-  } catch (error) {
-    console.error(
-      "Could not load food experiences:",
-      error
+
+    console.log(
+      `Loaded ${regions.length} regions from Google Sheets.`
     );
+
+    console.log(
+      `Loaded ${regionGeometry.length} region geometry records from Google Sheets.`
+    );
+
+  } catch (error) {
+    console.error("Could not load food journey data:", error);
   }
 }
 
@@ -307,35 +316,268 @@ const regionLayers = new Map();
 // GET FOODS FOR A REGION
 // ============================================================
 
-function experiencesForRegion(regionID) {
 
+function getRegionAndDescendantIDs(regionID) {
   if (regionID === null || regionID === undefined) {
+    return new Set();
+  }
+
+  const includedIDs = new Set([String(regionID)]);
+  const pendingIDs = [String(regionID)];
+
+  while (pendingIDs.length > 0) {
+    const parentID = pendingIDs.shift();
+
+    regions.forEach(region => {
+      const id = String(region.id);
+      const regionParentID = region.parentRegionID;
+
+      if (
+        regionParentID !== null &&
+        regionParentID !== undefined &&
+        String(regionParentID) === parentID &&
+        !includedIDs.has(id)
+      ) {
+        includedIDs.add(id);
+        pendingIDs.push(id);
+      }
+    });
+  }
+
+  return includedIDs;
+}
+
+function experiencesForRegion(regionID) {
+  const includedIDs = getRegionAndDescendantIDs(regionID);
+
+  if (includedIDs.size === 0) {
     return [];
   }
 
-  return experiences.filter(
-    experience => {
-
-      return String(
-        experience.region?.id
-      ) === String(regionID);
-
-    }
+  return experiences.filter(experience =>
+    includedIDs.has(String(experience.region?.id))
   );
-
 }
-
-// ============================================================
-// GET REGION FOOD COUNT
-// ============================================================
 
 function getRegionFoodCount(regionID) {
-
-  return experiencesForRegion(
-    regionID
-  ).length;
-
+  return experiencesForRegion(regionID).length;
 }
+
+function getGeoJSONArea(geometry) {
+      if (typeof geometry === "string") {
+        try {
+          geometry = JSON.parse(geometry);
+        } catch {
+          return 0;
+        }
+      }
+
+      if (!geometry?.coordinates) {
+        return 0;
+      }
+
+      const earthRadius = 6371008.8;
+      const radians = Math.PI / 180;
+
+      function getRingArea(ring) {
+        let total = 0;
+
+        for (let i = 0; i < ring.length - 1; i++) {
+          const [lon1, lat1] = ring[i];
+          const [lon2, lat2] = ring[i + 1];
+
+          let deltaLon = (lon2 - lon1) * radians;
+
+          // Handle polygons crossing the antimeridian.
+          if (deltaLon > Math.PI) deltaLon -= 2 * Math.PI;
+          if (deltaLon < -Math.PI) deltaLon += 2 * Math.PI;
+
+          total += deltaLon * (
+            2 +
+            Math.sin(lat1 * radians) +
+            Math.sin(lat2 * radians)
+          );
+        }
+
+        return Math.abs(total * earthRadius * earthRadius / 2);
+      }
+
+      function getPolygonArea(rings) {
+        if (!rings?.length) return 0;
+
+        const outerArea = getRingArea(rings[0]);
+        const holeArea = rings
+          .slice(1)
+          .reduce((sum, ring) => sum + getRingArea(ring), 0);
+
+        return Math.max(0, outerArea - holeArea);
+      }
+
+      switch (geometry.type) {
+        case "Polygon":
+          return getPolygonArea(geometry.coordinates);
+
+        case "MultiPolygon":
+          return geometry.coordinates.reduce(
+            (sum, polygon) => sum + getPolygonArea(polygon),
+            0
+          );
+
+        default:
+          return 0;
+      }
+    }
+
+function drawRegionLayers() {
+  // Keep only the newest geometry record for each region.
+  const newestGeometryByRegion = new Map();
+
+  regionGeometry.forEach(record => {
+    if (
+      record.regionID === null ||
+      record.regionID === undefined ||
+      !record.geometry
+    ) {
+      return;
+    }
+
+    const regionID = String(record.regionID);
+    const existing = newestGeometryByRegion.get(regionID);
+
+    const recordTime = Date.parse(record.updatedAt || "") || 0;
+    const existingTime = existing
+      ? Date.parse(existing.updatedAt || "") || 0
+      : -1;
+
+    if (!existing || recordTime >= existingTime) {
+      newestGeometryByRegion.set(regionID, record);
+    }
+  });
+
+  // Clear any existing region overlays before drawing again.
+  regionLayers.forEach(layer => map.removeLayer(layer));
+  regionLayers.clear();
+
+  [...newestGeometryByRegion.entries()]
+    .sort(([, recordA], [, recordB]) =>
+      getGeoJSONArea(recordB.geometry) -
+      getGeoJSONArea(recordA.geometry)
+    )
+    .forEach(([regionID, record]) => {
+    const region = regions.find(
+      item => String(item.id) === regionID
+    );
+
+    if (!region) {
+      return;
+    }
+
+    // Country boundaries come from the world map GeoJSON.
+    // Only draw custom geometry for non-country regions.
+    if (
+      String(region.type).trim().toLowerCase() === "country"
+    ) {
+      console.log("Skipping country custom geometry:", region.name);
+      return;
+    }
+
+    console.log("Drawing custom region:", region.name, region.type);
+
+    // Count foods assigned to this region and its descendants.
+    const foodCount = getRegionFoodCount(regionID);
+
+    if (foodCount === 0) {
+      return;
+    }
+
+    try {
+      const geometry =
+        typeof record.geometry === "string"
+          ? JSON.parse(record.geometry)
+          : record.geometry;
+
+      if (!geometry || !geometry.type || !geometry.coordinates) {
+        console.warn(
+          "Invalid geometry for region:",
+          region.name
+        );
+        return;
+      }
+
+      const feature = {
+        type: "Feature",
+        properties: {
+          regionID,
+          regionName: region.name
+        },
+        geometry
+      };
+
+      const regionLayer = L.geoJSON(feature, {
+        pane: "regionPane",
+
+        style: () =>
+          getExploredStyle(
+            foodCount,
+            maximumFoodCount
+          ),
+
+        onEachFeature: (_feature, layer) => {
+          layer.bindTooltip(
+            `
+              <div class="country-tooltip-content">
+                <strong>${region.name}</strong>
+                <span class="tooltip-count">
+                  ${foodCount}
+                  ${foodCount === 1 ? "food" : "foods"} explored
+                </span>
+              </div>
+            `,
+            {
+              sticky: true,
+              className: "country-tooltip"
+            }
+          );
+
+          layer.on("mouseover", event => {
+            event.target.setStyle(
+              getHoverExploredStyle(
+                foodCount,
+                maximumFoodCount
+              )
+            );
+//            event.target.bringToFront();
+          });
+
+          layer.on("mouseout", event => {
+            event.target.setStyle(
+              getExploredStyle(
+                foodCount,
+                maximumFoodCount
+              )
+            );
+          });
+          layer.on("click", event => {
+            L.DomEvent.stopPropagation(event.originalEvent);
+            openRegionFoods(region.name);
+          });
+        }
+      }).addTo(map);
+
+      regionLayers.set(regionID, regionLayer);
+    } catch (error) {
+      console.error(
+        `Could not draw region "${region.name}":`,
+        error
+      );
+    }
+  });
+
+  console.log(
+    `Drew ${regionLayers.size} explored region overlays.`
+  );
+}
+
 
 // ============================================================
 // NORMALIZE COUNTRY CODE
@@ -430,6 +672,10 @@ function experiencesForCountry(countryCode) {
 // ============================================================
 // LOAD WORLD MAP
 // ============================================================
+//Let's make the rule:
+//  - Country regions use the existing world map's country geometry.
+//  - Subregion, City, and geographic/cultural regions can use custom geometry.
+//  - Food records still count toward the appropriate country and region totals.
 
 async function loadWorldMap() {
   try {
@@ -447,9 +693,16 @@ async function loadWorldMap() {
       data.features.length,
       "countries"
     );
+    map.createPane("countryPane");
+    map.getPane("countryPane").style.zIndex = 400;
+
+    map.createPane("regionPane");
+    map.getPane("regionPane").style.zIndex = 410;
+
     L.geoJSON(
       data,
       {
+        pane: "countryPane",
         style: feature => {
           const countryCode = getCountryCode(feature);
           const foods = experiencesForCountry(countryCode);
@@ -557,7 +810,16 @@ async function loadWorldMap() {
           });
         }
       }
+
     ).addTo(map);
+
+    drawRegionLayers();
+
+    // Keep region polygons above country polygons.
+//    regionLayers.forEach(layer => {
+//      layer.bringToFront();
+//    });
+
     console.log(
       "Countries represented in our food journey:"
     );
@@ -1383,16 +1645,17 @@ function openRegionExplorer() {
 }
 
 function openRegionFoods(regionName) {
-  const regionExperiences =
-    experiences
-      .filter(
-        experience =>
-          experience.region?.name ===
-          regionName
-      )
-      .sort((a, b) =>
-        a.dish.localeCompare(b.dish)
-      );
+  const selectedRegion = regions.find(
+    region => region.name === regionName
+  );
+  const regionExperiences = (
+    selectedRegion
+      ? experiencesForRegion(selectedRegion.id)
+      : experiences.filter(
+          experience => experience.region?.name === regionName
+        )
+  ).sort((a, b) => a.dish.localeCompare(b.dish));
+
   const foodList =
     regionExperiences
       .map(experience => `
