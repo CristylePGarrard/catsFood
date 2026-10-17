@@ -324,36 +324,6 @@ const regionLayers = new Map();
 // ============================================================
 
 
-function getRegionAndDescendantIDs(regionID) {
-  if (regionID === null || regionID === undefined) {
-    return new Set();
-  }
-
-  const includedIDs = new Set([String(regionID)]);
-  const pendingIDs = [String(regionID)];
-
-  while (pendingIDs.length > 0) {
-    const parentID = pendingIDs.shift();
-
-    regions.forEach(region => {
-      const id = String(region.id);
-      const regionParentID = region.parentRegionID;
-
-      if (
-        regionParentID !== null &&
-        regionParentID !== undefined &&
-        String(regionParentID) === parentID &&
-        !includedIDs.has(id)
-      ) {
-        includedIDs.add(id);
-        pendingIDs.push(id);
-      }
-    });
-  }
-
-  return includedIDs;
-}
-
 function experiencesForRegion(regionID) {
   if (regionID === null || regionID === undefined) {
     return [];
@@ -490,7 +460,7 @@ function drawRegionLayers() {
 
     console.log("Drawing custom region:", region.name, region.type);
 
-    // Count foods assigned to this region and its descendants.
+    // Count only foods assigned directly to this region.
     const foodCount = getRegionFoodCount(regionID);
 
     if (foodCount === 0) {
