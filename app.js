@@ -87,7 +87,7 @@ L.tileLayer(
 // The heat-map calculations will automatically create all of
 // the colors in between.
 //
-// Our max food value should be the max value of foods per country.
+// The color scale is based on the largest directly assigned region count.
 
 // ============================================================
 // GET MAXIMUM FOOD COUNT
@@ -95,16 +95,23 @@ L.tileLayer(
 let maximumFoodCount = 0;
 
 function getMaximumFoodCount(experiences) {
-  // if array is empty return 0
   if (!experiences || experiences.length === 0) return 0;
-  const countryCounts = {};
-  // 1. Loop through experiences and count entries per country
-  for (const exp of experiences){
-    const code = exp.countryCode;
-    countryCounts[code] = (countryCounts[code] || 0) + 1;
+
+  const regionCounts = {};
+
+  // Count each food only toward its explicitly assigned region.
+  for (const exp of experiences) {
+    const regionID = exp.region?.id;
+
+    if (regionID === null || regionID === undefined || regionID === "") {
+      continue;
+    }
+
+    const key = String(regionID);
+    regionCounts[key] = (regionCounts[key] || 0) + 1;
   }
-  // 2. Find and return highest number from counts
-  return Math.max(...Object.values(countryCounts));
+
+  return Math.max(0, ...Object.values(regionCounts));
 }
 
 const heatMapTheme = {
@@ -348,14 +355,14 @@ function getRegionAndDescendantIDs(regionID) {
 }
 
 function experiencesForRegion(regionID) {
-  const includedIDs = getRegionAndDescendantIDs(regionID);
-
-  if (includedIDs.size === 0) {
+  if (regionID === null || regionID === undefined) {
     return [];
   }
 
+  // Only include foods assigned directly to this region.
+  // Parent regions do not inherit foods from their descendants.
   return experiences.filter(experience =>
-    includedIDs.has(String(experience.region?.id))
+    String(experience.region?.id) === String(regionID)
   );
 }
 
@@ -669,6 +676,25 @@ function experiencesForCountry(countryCode) {
   );
 }
 
+// Foods count toward a country on the initial map only when the
+// food's assigned region is that country itself. A regional food
+// such as Dosa assigned to Southern India won't color India too.
+function experiencesForCountryRegion(countryCode) {
+  const normalizedCode = normalizeCountryCode(countryCode);
+
+  if (!normalizedCode) {
+    return [];
+  }
+
+  return experiences.filter(experience =>
+    String(experience.region?.type || "").trim().toLowerCase() === "country" &&
+    String(experience.countryCode || "")
+      .split(",")
+      .map(code => normalizeCountryCode(code))
+      .includes(normalizedCode)
+  );
+}
+
 // ============================================================
 // LOAD WORLD MAP
 // ============================================================
@@ -705,7 +731,7 @@ async function loadWorldMap() {
         pane: "countryPane",
         style: feature => {
           const countryCode = getCountryCode(feature);
-          const foods = experiencesForCountry(countryCode);
+          const foods = experiencesForCountryRegion(countryCode);
           return foods.length > 0
             ? getExploredStyle(
                 foods.length,
@@ -716,7 +742,7 @@ async function loadWorldMap() {
         onEachFeature: (feature, layer) => {
           const countryCode = getCountryCode(feature);
           const countryName = getCountryName(feature);
-          const foods = experiencesForCountry(countryCode);
+          const foods = experiencesForCountryRegion(countryCode);
           const foodCount = foods.length;
           if (countryCode) {
             countryLayers.set(countryCode, layer);
