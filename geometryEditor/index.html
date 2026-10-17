@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Region Geometry Editor</title>
+
+  <link
+    rel="stylesheet"
+    href="editor.css"
+  >
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.0/dist/leaflet-geoman.css"
+  />
+
+</head>
+
+<body>
+
+  <header class="editor-header">
+
+    <h1>
+      🌎 Region Geometry Editor
+    </h1>
+
+    <p>
+      Create geographic boundaries for food regions.
+    </p>
+
+  </header>
+
+
+  <main class="editor-container">
+
+    <section class="editor-controls">
+      <label for="regionSelect">Region</label>
+
+      <div class="region-selection">
+        <select id="regionSelect">
+          <option value="">Select a region</option>
+        </select>
+
+        <div
+                id="geometryMethod"
+                class="geometry-method"
+                aria-live="polite"
+        >
+          Select a region to see its geometry method.
+        </div>
+      </div>
+    </section>
+
+
+    <section
+      id="map"
+      class="editor-map"
+      aria-label="Region drawing map"
+    >
+    </section>
+
+
+    <section class="geometry-panel">
+
+      <div>
+
+        <h2>
+          Geometry
+        </h2>
+
+        <pre id="geometryOutput">
+No geometry drawn yet.
+        </pre>
+
+      </div>
+
+      <div class="editor-actions">
+
+        <button id="clearButton" type="button">
+          Clear
+        </button>
+
+        <button id="saveButton" type="button">
+          Save
+        </button>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script
+    src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.0/dist/leaflet-geoman.min.js"></script>
+  <script src="editor.js"></script>
+</body>
+
+</html>

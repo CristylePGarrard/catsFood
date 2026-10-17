@@ -1,0 +1,147 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f5f1ea;
+  color: #2f3a32;
+}
+
+.editor-header {
+  padding: 30px 40px;
+  background: #3f5f4a;
+  color: white;
+}
+
+.editor-header h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+}
+
+.editor-header p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.editor-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px;
+}
+
+.editor-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.editor-controls label {
+  font-weight: bold;
+}
+
+.editor-controls select {
+  min-width: 280px;
+  padding: 10px 12px;
+  border: 1px solid #b8b2a8;
+  border-radius: 8px;
+  background: white;
+  font-size: 16px;
+}
+
+.editor-map {
+  height: 600px;
+  border: 1px solid #c8c1b7;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #dce5e1;
+}
+
+.geometry-panel {
+  margin-top: 20px;
+  padding: 20px;
+  background: white;
+  border: 1px solid #d4cec5;
+  border-radius: 14px;
+}
+
+.geometry-panel h2 {
+  margin-top: 0;
+}
+
+#geometryOutput {
+  max-height: 250px;
+  overflow: auto;
+  padding: 15px;
+  background: #f5f1ea;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.editor-actions button {
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#clearButton {
+  background: #ddd6cc;
+  color: #2f3a32;
+}
+
+#saveButton {
+  background: #3f5f4a;
+  color: white;
+}
+
+.editor-actions button:hover {
+  opacity: 0.85;
+}
+
+@media (max-width: 700px) {
+
+  .editor-header {
+    padding: 25px 20px;
+  }
+
+  .editor-container {
+    padding: 20px;
+  }
+
+  .editor-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .editor-controls select {
+    width: 100%;
+  }
+
+  .region-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .geometry-method {
+    font-size: 14px;
+    color: #5f665f;
+  }
+
+  .editor-map {
+    height: 450px;
+  }
+
+}
